@@ -22,6 +22,7 @@ pub fn build(b: *Build) void {
     const lang = b.option(Language, "lang", "Lua language version to build") orelse .lua54;
     const shared = b.option(bool, "shared", "Build shared library instead of static") orelse false;
     const luau_use_4_vector = b.option(bool, "luau_use_4_vector", "Build Luau to use 4-vectors instead of the default 3-vector.") orelse false;
+    const can_use_jmp = b.option(bool, "can_use_jmp", "Whether the build target can use jmp / setjmp") orelse true;
 
     if (lang == .luau and shared) {
         std.debug.panic("Luau does not support compiling or loading shared modules", .{});
@@ -36,6 +37,7 @@ pub fn build(b: *Build) void {
     const config = b.addOptions();
     config.addOption(Language, "lang", lang);
     config.addOption(bool, "luau_use_4_vector", luau_use_4_vector);
+    config.addOption(bool, "can_use_jmp", can_use_jmp);
     ziglua.addOptions("config", config);
 
     if (lang == .luau) {
@@ -49,7 +51,7 @@ pub fn build(b: *Build) void {
         const lib = switch (lang) {
             .luajit => buildLuaJIT(b, target, optimize, upstream, shared),
             .luau => buildLuau(b, target, optimize, upstream, luau_use_4_vector),
-            else => buildLua(b, target, optimize, upstream, lang, shared),
+            else => buildLua(b, target, optimize, upstream, lang, shared, can_use_jmp),
         };
 
         // Expose the Lua artifact
@@ -130,7 +132,7 @@ pub fn build(b: *Build) void {
     docs_step.dependOn(&install_docs.step);
 }
 
-fn buildLua(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, upstream: *Build.Dependency, lang: Language, shared: bool) *Step.Compile {
+fn buildLua(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, upstream: *Build.Dependency, lang: Language, shared: bool, can_use_jmp: bool) *Step.Compile {
     const lib_opts = .{
         .name = "lua",
         .target = target,
@@ -164,6 +166,11 @@ fn buildLua(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.Optim
 
         // Enable api check
         if (optimize == .Debug) "-DLUA_USE_APICHECK" else "",
+
+        // Hack: disable setjmp support if needed
+        if (!can_use_jmp) "-DLUAI_THROW(L,c)={{return;}}" else "",
+        if (!can_use_jmp) "-DLUAI_TRY(L,c,a)=a" else "",
+        if (!can_use_jmp) "-Dluai_jmpbuf=int" else "",
     };
 
     const lua_source_files = switch (lang) {
