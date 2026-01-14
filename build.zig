@@ -22,6 +22,7 @@ pub fn build(b: *Build) void {
     const luau_use_4_vector = b.option(bool, "luau_use_4_vector", "Build Luau to use 4-vectors instead of the default 3-vector.") orelse false;
     const lua_user_h = b.option(Build.LazyPath, "lua_user_h", "Lazy path to user supplied c header file") orelse null;
     const additional_system_headers = b.option(Build.LazyPath, "additional_system_headers", "Lazy path to additional system headers to include when building Lua") orelse null;
+    const can_use_jmp = b.option(bool, "can_use_jmp", "Whether the build target can use jmp / setjmp") orelse true;
 
     if (lang == .luau and shared) {
         std.debug.panic("Luau does not support compiling or loading shared modules", .{});
@@ -45,6 +46,7 @@ pub fn build(b: *Build) void {
     config.addOption(bool, "luau_use_4_vector", luau_use_4_vector);
     config.addOption(bool, "system_lua", system_lua);
     zlua.addOptions("config", config);
+    config.addOption(bool, "can_use_jmp", can_use_jmp);
 
     if (lang == .luau) {
         const vector_size: usize = if (luau_use_4_vector) 4 else 3;
@@ -70,6 +72,7 @@ pub fn build(b: *Build) void {
                 .shared = shared,
                 .library_name = library_name,
                 .lua_user_h = lua_user_h,
+                .can_use_jmp = can_use_jmp,
             }),
         };
 

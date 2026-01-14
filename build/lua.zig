@@ -19,6 +19,7 @@ pub const Options = struct {
     shared: bool,
     library_name: []const u8,
     lua_user_h: ?Build.LazyPath,
+    can_use_jmp: bool,
 };
 
 pub fn configure(
@@ -31,6 +32,7 @@ pub fn configure(
     const lang = opts.lang;
     const library_name = opts.library_name;
     const lua_user_h = opts.lua_user_h;
+    const can_use_jmp = opts.can_use_jmp;
     const shared = opts.shared;
 
     const version: std.SemanticVersion = switch (lang) {
@@ -76,6 +78,11 @@ pub fn configure(
         if (target.result.os.tag == .windows and shared) "-DLUA_BUILD_AS_DLL" else "",
 
         if (lua_user_h) |_| b.fmt("-DLUA_USER_H=\"{s}\"", .{user_header}) else "",
+
+        // Hack: disable setjmp support if needed
+        if (!can_use_jmp) "-DLUAI_THROW(L,c)={{return;}}" else "",
+        if (!can_use_jmp) "-DLUAI_TRY(L,c,a)=a" else "",
+        if (!can_use_jmp) "-Dluai_jmpbuf=int" else "",
     };
 
     const lua_source_files = switch (lang) {
